@@ -220,7 +220,13 @@ class Billing extends BillingBase
         return $this->client->sendAsync($this->makeRequest($endpoint, $params))
                         ->then(
                                 function (ResponseInterface $response) {
-                                    return Billing::processResponse($response);
+                                    if (200 == $response->getStatusCode()) {
+                                        return Billing::processResponse($response);
+                                    }
+                                    if ($this->isAuthError($response)) {
+                                        throw new PortaAuthException();
+                                    }
+                                    $this->processPortaError($response);
                                 }
         );
     }
