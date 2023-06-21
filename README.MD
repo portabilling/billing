@@ -8,7 +8,7 @@ It is decoupled from most of depenencies, requiring standart PSR interfaces inst
 - [PSR-7](https://www.php-fig.org/psr/psr-7) standard objects used, Request, Response and Stream
 - [PSR-17](https://www.php-fig.org/psr/psr-17) requestFactory and StreamFactory to create PSR-7 objects
 - [PSR-16](https://www.php-fig.org/psr/psr-16) SimpleCache object to save session data and provide session persistance. Very basic implementations packaged, enough to handle session storage in not too high load ineronment.
-- [PSR-18](https://www.php-fig.org/psr/psr-18) HTTP clients supported, but it lacks of effective support for concurrent and async requestst. It is better to use advanced clients like Guzzle.
+- [PSR-18](https://www.php-fig.org/psr/psr-18) HTTP clients supported, but it lacks of effective support for concurrent and async requestst. It is better to use advanced clients like [Guzzle with it's adapter](https://packagist.org/packages/porta/billing-guzzle).
 
 ## Usage
 Start with [usage example](https://github.com/portabilling/billing/blob/master/examples/BillingUsage.php), check [phpDoc](https://portabilling.github.io/billing/). This lib may make communications to the billing much simpler, but you still need deep knowledge of billing architecture, entities and logics. Use [PortaOne API docs](https://docs.portaone.com/), mind your API reference with live test ability always on your fingertips: at path `doc/api/` of the same server where admin web interface reside.
@@ -43,10 +43,10 @@ Form all this, factory is what yo really eed to choose and provide. It could be 
 
 Some dependencies not in composer profile, but need be kept in mind:
 - **psr/simple-cache-implementation**. Very simple implementaton of PSR-16 included, and it could be enough for simple use cases. If you need more  caching for the project - just use PSR-16 cache of your choice or PSR-6 with bridge to PSR-16. Wire to configuration and go. 
-- **psr/http-client-implementation**. Library uses own HTTP client adapter interface to allow concurrent and async calls. It **may** use any PSR-18 HTTP client and PSR-18 adapter is packaged. But it is better to use more advanced client. Guzzle directly supported by extra package.
+- **psr/http-client-implementation**. Library uses own HTTP client adapter interface to allow concurrent and async calls. It **may** use any PSR-18 HTTP client and PSR-18 adapter is packaged. But it is better to use more advanced client. [Guzzle directly supported by extra package](https://packagist.org/packages/porta/billing-guzzle).
 
 ## Testing
-Tested with PHPUnit 9.6 on php 7.4 to 8.2, quite good coverage, which does not mean everything will work as intended. Guzzle used for testing, not yet decoupled in tests.
+Tested with PHPUnit 9.6 on php 7.4 to 8.2, 100% coverage, which does not mean everything will work as intended. Guzzle used for unit tests, not yet decoupled there.
 
 Current testing and compatibility status check on [Github flows](https://github.com/portabilling/billing/actions/workflows/Compatibility.yml)
 
