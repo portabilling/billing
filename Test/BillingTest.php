@@ -153,7 +153,7 @@ class BillingTest extends Tools\RequestTestCase
         $r = $b->call('/NoMatter');
     }
 
-    public function testAsyncCall()
+    public function testCallConcurrent()
     {
         $list = [
             'key1' => new BulkOperation('/test1', []),
@@ -196,29 +196,6 @@ class BillingTest extends Tools\RequestTestCase
                     new Response(200, [], '{"answerKey8":"answerData8"}'),
                 ],
                 PortaToken::createLoginData(7200));
-//        $conf = (new C(self::HOST, self::ACCOUNT))->setOptions(
-//                $this->prepareRequests([
-//                    new Response(200, ['content-type' => 'application/json'],
-//                            '{}'),
-//                    new Response(200, ['content-type' => 'application/json'],
-//                            '{"answerKey2-0":"answerData2-0"}'),
-//                    new Response(200, ['content-type' => 'application/json'],
-//                            '{"answerKey2-1":"answerData2-1"}'),
-//                    new Response(200, ['content-type' => 'application/json'],
-//                            '{"answerKey3":"answerData3"}'),
-//                    new Response(200, ['content-type' => 'application/json'],
-//                            '{"answerKey4":"answerData4"}'),
-//                    new Response(500, ['content-type' => 'application/json'],
-//                            '{"faultcode": "WrongRequest", "faultstring": "WrongRequestMessage"}'),
-//                    new \GuzzleHttp\Exception\ConnectException("Connection fail",
-//                            new \GuzzleHttp\Psr7\Request('GET', '/test')),
-//                    new Response(200, ['content-type' => 'application/json'],
-//                            '{"answerKey7":"answerData7"}'),
-//                    new Response(200, [], '{"answerKey8":"answerData8"}'),
-//                ])
-//        );
-//        $storage = new Tools\SessionPHPClassStorage(PortaToken::createLoginData(7200));
-
         $b = new Billing($conf);
 
         $this->assertFalse($list['key1']->executed());
@@ -275,6 +252,103 @@ class BillingTest extends Tools\RequestTestCase
         );
 
         $b->callConcurrent([]);
+    }
+
+    public function testCallConcurentExceptionNoResponse()
+    {
+        $factory = new \GuzzleHttp\Psr7\HttpFactory;
+        $adapter = $this->createMock(\Porta\Billing\Interfaces\ClientAdapterInterface::class);
+        $torage = [];
+        $adapter->expects($this->any())
+                ->method('concurrent')
+                ->willReturnCallback(function ($a) {
+                    $i = 0;
+                    $answer = [];
+                    foreach ($a as $key => $val) {
+                        if ($i++ != 1) {
+                            $answer[$key] = new Response(200, [], '{}');
+                        }
+                    }
+                    return $answer;
+                });
+        $cache = $this->prepareCache(PortaToken::createLoginData(7200));
+        $billing = new Billing(new \Porta\Billing\Config(self::HOST, $factory, $factory,
+                        $adapter, $cache, self::ACCOUNT));
+
+        $request = [
+            new BulkOperation('Test'),
+            new BulkOperation('Test'),
+            new BulkOperation('Test'),
+        ];
+        $this->expectException(PortaException::class);
+        $this->expectExceptionMessage('No response found for a request in a bulk set');
+        $billing->callConcurrent($request);
+    }
+
+    public function testCallConcurentExceptionBadResponse()
+    {
+        $factory = new \GuzzleHttp\Psr7\HttpFactory;
+        $adapter = $this->createMock(\Porta\Billing\Interfaces\ClientAdapterInterface::class);
+        $torage = [];
+        $adapter->expects($this->any())
+                ->method('concurrent')
+                ->willReturnCallback(function ($a) {
+                    $i = 0;
+                    $answer = [];
+                    foreach ($a as $key => $val) {
+                        $answer[$key] = ($i++ == 1) ? new \stdClass() : new Response(200, [], '{}');
+                    }
+                    return $answer;
+                });
+        $cache = $this->prepareCache(PortaToken::createLoginData(7200));
+        $billing = new Billing(new \Porta\Billing\Config(self::HOST, $factory, $factory,
+                        $adapter, $cache, self::ACCOUNT));
+
+        $request = [
+            new BulkOperation('Test'),
+            new BulkOperation('Test'),
+            new BulkOperation('Test'),
+        ];
+        $this->expectException(PortaException::class);
+        $this->expectExceptionMessage('Bulk request returned an object which neither ResponseInterface nor PortaException');
+        $billing->callConcurrent($request);
+    }
+
+    public function testAsync()
+    {
+        $factory = new \GuzzleHttp\Psr7\HttpFactory;
+        $promise1 = new \GuzzleHttp\Promise\Promise();
+        $promise2 = new \GuzzleHttp\Promise\Promise();
+        $promise3 = new \GuzzleHttp\Promise\Promise();
+        $adapter = $this->createMock(\Porta\Billing\Interfaces\ClientAdapterInterface::class);
+        $adapter->expects($this->any())
+                ->method('sendAsync')
+                ->willReturn($promise1, $promise2, $promise3);
+        $cache = $this->prepareCache(PortaToken::createLoginData(7200));
+        $billing = new Billing(new \Porta\Billing\Config(self::HOST, $factory, $factory,
+                        $adapter, $cache, self::ACCOUNT));
+
+        $promiseAnswer = $billing->callAsync('Test');
+        $promise1->resolve(new Response(200, ['content-type' => 'application/json'], '{"answerKey1":"answerData1"}'));
+        $this->assertEquals(["answerKey1" => "answerData1"], $promiseAnswer->wait());
+
+        $promiseAnswer = $billing->callAsync('Test');
+        $promise2->resolve(new Response(500, [], json_encode(['faultcode' => 'Server.Session.check_auth.auth_failed'])));
+        try {
+            $promiseAnswer->wait();
+            $this->fail("Exception expected, not happen");
+        } catch (\Exception $exc) {
+            $this->assertInstanceOf(PortaAuthException::class, $exc);
+        }
+
+        $promiseAnswer = $billing->callAsync('Test');
+        $promise3->resolve(new Response(500, ['content-type' => 'application/json'], '{"faultcode": "WrongRequest", "faultstring": "WrongRequestMessage"}'));
+        try {
+            $promiseAnswer->wait();
+            $this->fail("Exception expected, not happen");
+        } catch (\Exception $exc) {
+            $this->assertInstanceOf(PortaApiException::class, $exc);
+        }
     }
 
     const ZONE = 'Pacific/Palau';
