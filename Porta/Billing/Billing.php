@@ -163,7 +163,7 @@ class Billing extends BillingBase
 
         foreach ($bulk as $key => $operation) {
             if (!isset($answers[$key])) {
-                throw new PortaException("No response found for a request in a bulk set ");
+                throw new PortaException("No response found for a request in a bulk set");
             }
             $response = $answers[$key];
             if ($response instanceof ResponseInterface) {
